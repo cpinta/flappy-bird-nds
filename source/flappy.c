@@ -71,7 +71,9 @@ int main(void) {
 		{50,0},
 	};
 
-	int bottomPipeOffset = 32;
+	int bottomPipeOffset = 132;
+	int xSpaceBtPipes = 100;
+	int pipeCount = 0;
 
 	pipe.state = 0;
 	bird.state = 0;
@@ -206,7 +208,7 @@ int main(void) {
 				SpriteSize_32x64,
 				SpriteColorFormat_16Color,
 				pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
-				1,                  //sprite rotation data
+				-1,                  //sprite rotation data
 				false,               //double the size when rotating?
 				false,			//hide the sprite?
 				false, false, //vflip, hflip
@@ -221,11 +223,11 @@ int main(void) {
 				SpriteSize_32x64,
 				SpriteColorFormat_16Color,
 				pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
-				1,                  //sprite rotation data
+				-1,                  //sprite rotation data
 				false,               //double the size when rotating?
 				false,			//hide the sprite?
-				true, true, //vflip, hflip
-				true	//apply mosaic
+				false, true, //vflip, hflip
+				false	//apply mosaic
 				);
 		}
 
