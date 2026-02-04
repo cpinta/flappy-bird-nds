@@ -27,6 +27,12 @@ typedef struct
 	int anim_frame;
 }Sprite;
 
+typedef struct
+{
+	int x;
+	int y;
+}XYPair;
+
 enum {SCREEN_TOP = 0, SCREEN_BOTTOM = 192, SCREEN_LEFT = 0, SCREEN_RIGHT = 256};
 
 void initSprite(Sprite *sprite, u8* gfx, SpriteSize sprite_size, int sy)
@@ -58,6 +64,14 @@ int main(void) {
 	touchPosition touch;
 	Sprite bird = {0,0};
 	Sprite pipe = {0,0};
+
+	XYPair pipes[] ={
+		{10,0},
+		{30,0},
+		{50,0},
+	};
+
+	int bottomPipeOffset = 32;
 
 	pipe.state = 0;
 	bird.state = 0;
@@ -183,20 +197,37 @@ int main(void) {
 			false	//apply mosaic
 			);
 
-		oamSet(&oamMain, //main graphics engine context
-			1,           //oam index (0 to 127)
-			30, 30,   //x and y pixel location of the sprite
-			0,                    //priority, lower renders last (on top)
-			1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
-			SpriteSize_32x64,
-			SpriteColorFormat_16Color,
-			pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
-			1,                  //sprite rotation data
-			false,               //double the size when rotating?
-			false,			//hide the sprite?
-			false, false, //vflip, hflip
-			false	//apply mosaic
-			);
+		for(int i=0;i<3;i++){
+			oamSet(&oamMain, //main graphics engine context
+				1 + i * 2,           //oam index (0 to 127)
+				pipes[i].x, pipes[i].y,   //x and y pixel location of the sprite
+				0,                    //priority, lower renders last (on top)
+				1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+				SpriteSize_32x64,
+				SpriteColorFormat_16Color,
+				pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
+				1,                  //sprite rotation data
+				false,               //double the size when rotating?
+				false,			//hide the sprite?
+				false, false, //vflip, hflip
+				false	//apply mosaic
+				);
+
+			oamSet(&oamMain, //main graphics engine context
+				2+ i * 2,           //oam index (0 to 127)
+				pipes[i].x, pipes[i].y + bottomPipeOffset,   //x and y pixel location of the sprite
+				0,                    //priority, lower renders last (on top)
+				1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+				SpriteSize_32x64,
+				SpriteColorFormat_16Color,
+				pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
+				1,                  //sprite rotation data
+				false,               //double the size when rotating?
+				false,			//hide the sprite?
+				true, true, //vflip, hflip
+				true	//apply mosaic
+				);
+		}
 
 
 
