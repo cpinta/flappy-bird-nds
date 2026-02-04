@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include <flappy32.h>
+#include <pipe.h>
 
 static volatile int frame = 0;
 
@@ -36,8 +37,8 @@ void initSprite(Sprite *sprite, u8* gfx)
 void animateSprite(Sprite *sprite)
 {
 	int frame = sprite->anim_frame + sprite->state * FRAMES_PER_ANIMATION;
-	u8* offset = sprite->frame_gfx + frame * 32*32;
-	dmaCopy(offset, sprite->sprite_gfx_mem, 32*32);
+	u8* offset = sprite->frame_gfx + frame * 16*32;
+	dmaCopy(offset, sprite->sprite_gfx_mem, 16*32);
 }
 
 int angleToRotation(float angle){
@@ -54,6 +55,11 @@ int main(void) {
 	int i = 0;
 	touchPosition touch;
 	Sprite bird = {0,0};
+	Sprite pipe = {0,0};
+
+	pipe.state = 0;
+	bird.state = 0;
+	pipe.anim_frame = 0;
 
 	int flapStartFrame = 0;
 
@@ -68,8 +74,10 @@ int main(void) {
 
 
 	initSprite(&bird, (u8*)flappy32Tiles);
+	initSprite(&pipe, (u8*)pipeTiles);
 
-	dmaCopy(flappy32Pal, SPRITE_PALETTE, 512);
+	dmaCopy(flappy32Pal, SPRITE_PALETTE, 32);
+	dmaCopy(pipePal, SPRITE_PALETTE + 16, 32);
 
 	float y_height = SCREEN_BOTTOM - 16;
 	float y_speed = 0;
@@ -147,9 +155,6 @@ int main(void) {
 
 		animateSprite(&bird);
 
-
-
-
 		angle += angleVelocity;
 		angleVelocity -= ANGLE_ACCELERATION;
 
@@ -167,9 +172,24 @@ int main(void) {
 			0,                    //priority, lower renders last (on top)
 			0,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
 			SpriteSize_32x32,
-			SpriteColorFormat_256Color,
+			SpriteColorFormat_16Color,
 			bird.sprite_gfx_mem,                  //pointer to the loaded graphics
 			0,                  //sprite rotation data
+			false,               //double the size when rotating?
+			false,			//hide the sprite?
+			false, false, //vflip, hflip
+			false	//apply mosaic
+			);
+
+		oamSet(&oamMain, //main graphics engine context
+			1,           //oam index (0 to 127)
+			30, 0,   //x and y pixel location of the sprite
+			0,                    //priority, lower renders last (on top)
+			1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+			SpriteSize_32x64,
+			SpriteColorFormat_256Color,
+			pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
+			1,                  //sprite rotation data
 			false,               //double the size when rotating?
 			false,			//hide the sprite?
 			false, false, //vflip, hflip
