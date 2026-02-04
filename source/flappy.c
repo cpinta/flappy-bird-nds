@@ -29,10 +29,12 @@ typedef struct
 
 enum {SCREEN_TOP = 0, SCREEN_BOTTOM = 192, SCREEN_LEFT = 0, SCREEN_RIGHT = 256};
 
-void initSprite(Sprite *sprite, u8* gfx)
+void initSprite(Sprite *sprite, u8* gfx, SpriteSize sprite_size, int sy)
 {
-	sprite->sprite_gfx_mem = oamAllocateGfx(&oamMain, SpriteSize_32x32, SpriteColorFormat_256Color);
+	sprite->sprite_gfx_mem = oamAllocateGfx(&oamMain, sprite_size, SpriteColorFormat_16Color);
 	sprite->frame_gfx = (u8*)gfx;
+	u8* offset = sprite->frame_gfx + frame * sy*32;
+	dmaCopy(offset, sprite->sprite_gfx_mem, sy*32);
 }
 void animateSprite(Sprite *sprite)
 {
@@ -73,8 +75,8 @@ int main(void) {
 	oamInit(&oamSub, SpriteMapping_1D_128, false);
 
 
-	initSprite(&bird, (u8*)flappy32Tiles);
-	initSprite(&pipe, (u8*)pipeTiles);
+	initSprite(&bird, (u8*)flappy32Tiles, SpriteSize_32x32, 16);
+	initSprite(&pipe, (u8*)pipeTiles, SpriteSize_32x64, 32);
 
 	dmaCopy(flappy32Pal, SPRITE_PALETTE, 32);
 	dmaCopy(pipePal, SPRITE_PALETTE + 16, 32);
@@ -183,11 +185,11 @@ int main(void) {
 
 		oamSet(&oamMain, //main graphics engine context
 			1,           //oam index (0 to 127)
-			30, 0,   //x and y pixel location of the sprite
+			30, 30,   //x and y pixel location of the sprite
 			0,                    //priority, lower renders last (on top)
 			1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
 			SpriteSize_32x64,
-			SpriteColorFormat_256Color,
+			SpriteColorFormat_16Color,
 			pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
 			1,                  //sprite rotation data
 			false,               //double the size when rotating?
