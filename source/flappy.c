@@ -57,6 +57,11 @@ void flap(){
 	
 }
 
+int getPipeHeight(int min, int max){
+	int value = rand() % (max - min + 1) + min;
+	return value;
+}
+
 //---------------------------------------------------------------------------------
 int main(void) {
 	//---------------------------------------------------------------------------------
@@ -65,15 +70,10 @@ int main(void) {
 	Sprite bird = {0,0};
 	Sprite pipe = {0,0};
 
-	XYPair pipes[] ={
-		{10,0},
-		{30,0},
-		{50,0},
-	};
 
-	int bottomPipeOffset = 132;
+	int BOTTOM_PIPE_OFFSET = 48+64;
 	int xSpaceBtPipes = 100;
-	int pipeCount = 0;
+	int PIPE_COUNT = 4;
 
 	pipe.state = 0;
 	bird.state = 0;
@@ -97,11 +97,23 @@ int main(void) {
 	dmaCopy(flappy32Pal, SPRITE_PALETTE, 32);
 	dmaCopy(pipePal, SPRITE_PALETTE + 16, 32);
 
+	int PIPE_FRAME_WIDTH = 32;
+	int PIPE_FRAME_OFFSET = PIPE_FRAME_WIDTH + 55;
+	int MIN_PIPE_H = -44;
+	int MAX_PIPE_H = 44;
+
+	XYPair pipes[] ={
+		{SCREEN_RIGHT,getPipeHeight(MIN_PIPE_H, MAX_PIPE_H)},
+		{SCREEN_RIGHT + PIPE_FRAME_OFFSET * 1,getPipeHeight(MIN_PIPE_H, MAX_PIPE_H)},
+		{SCREEN_RIGHT + PIPE_FRAME_OFFSET * 2,getPipeHeight(MIN_PIPE_H, MAX_PIPE_H)},
+		{SCREEN_RIGHT + PIPE_FRAME_OFFSET * 3,getPipeHeight(MIN_PIPE_H, MAX_PIPE_H)},
+	};
+
 	float y_height = SCREEN_BOTTOM - 16;
 	float y_speed = 0;
-	float GRAVITY = 0.3f;
-	float JUMP_FORCE = 5.0f;
-	float MAX_Y_SPEED = 8.0f;
+	float GRAVITY = 0.3f/2;
+	float JUMP_FORCE = 5.0f/2;
+	float MAX_Y_SPEED = 8.0f/2;
 	int X_POS = 50;
 
 	int angle = 0;
@@ -110,6 +122,10 @@ int main(void) {
 	int ANGLE_CHANGE = 100;
 	int MAX_ANGLE = 20.0;
 	int MIN_ANGLE = -90.0;
+	int pipeFrame = 0;
+	int curPipeFrameOffset = 0;
+
+
 	bool isDead = false;
 
 	float ANGLE_ACCELERATION = 0.4f;
@@ -136,14 +152,22 @@ int main(void) {
 		if(held & KEY_START) break;
 
 
-		y_height -= y_speed;
 		y_speed -= GRAVITY;
+		if(y_speed > MAX_Y_SPEED){
+			y_speed = MAX_Y_SPEED;
+		}
+		if(y_speed < -MAX_Y_SPEED){
+			y_speed = -MAX_Y_SPEED;
+		}
 		if(y_height > SCREEN_BOTTOM - BOTTOM_OFFSET){
 			y_speed = 0;
 			y_height = SCREEN_BOTTOM - BOTTOM_OFFSET;
-			// iprintf("y_height less than 0");
 		}
 
+		y_height -= y_speed;
+		if(frame % 5 == 0){
+			printf("rand: %f\n", y_speed);
+		}
 
 		if(held & KEY_A){
 			if(y_height > SCREEN_TOP){
@@ -153,9 +177,6 @@ int main(void) {
 			}
 		}
 
-		if(y_speed > MAX_Y_SPEED){
-			y_speed = MAX_Y_SPEED;
-		}
 
 		if(y_speed > 0){
 			if(flapStartFrame != -1){
@@ -183,6 +204,7 @@ int main(void) {
 			angle = MAX_ANGLE;
 		}
 
+
 		oamRotateScale(&oamMain, 0, angle, (1<<8), (1<<8));
 		oamSet(&oamMain, //main graphics engine context
 			0,           //oam index (0 to 127)
@@ -199,7 +221,20 @@ int main(void) {
 			false	//apply mosaic
 			);
 
-		for(int i=0;i<3;i++){
+		for(int i=0;i<PIPE_COUNT;i++){
+			if(pipes[i].x > SCREEN_LEFT - PIPE_FRAME_WIDTH){
+				pipes[i].x -= 1;
+			}
+			else{
+				int j = i + PIPE_COUNT - 1;
+				if( j > PIPE_COUNT - 1){
+					j -= PIPE_COUNT;
+				}
+				
+
+				pipes[i].x = pipes[j].x + PIPE_FRAME_OFFSET;
+				pipes[i].y = getPipeHeight(MIN_PIPE_H, MAX_PIPE_H);
+			}
 			oamSet(&oamMain, //main graphics engine context
 				1 + i * 2,           //oam index (0 to 127)
 				pipes[i].x, pipes[i].y,   //x and y pixel location of the sprite
@@ -217,7 +252,7 @@ int main(void) {
 
 			oamSet(&oamMain, //main graphics engine context
 				2+ i * 2,           //oam index (0 to 127)
-				pipes[i].x, pipes[i].y + bottomPipeOffset,   //x and y pixel location of the sprite
+				pipes[i].x, pipes[i].y + BOTTOM_PIPE_OFFSET,   //x and y pixel location of the sprite
 				0,                    //priority, lower renders last (on top)
 				1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
 				SpriteSize_32x64,
@@ -236,7 +271,7 @@ int main(void) {
 		swiWaitForVBlank();
 
 		if(frame % 1 == 0){
-			printf(" angle = %d\nvel = %d\nacc = %f", angle, angleVelocity, ANGLE_ACCELERATION);
+
 		}
 
 		oamUpdate(&oamMain);
