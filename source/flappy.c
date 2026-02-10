@@ -19,6 +19,14 @@ typedef struct
 {
 	int x;
 	int y;
+	int width;
+	int height;
+}CollisionShape;
+
+typedef struct
+{
+	int x;
+	int y;
 
 	u16* sprite_gfx_mem;
 	u8*  frame_gfx;
@@ -62,6 +70,25 @@ int getPipeHeight(int min, int max){
 	return value;
 }
 
+bool isOverlapping(CollisionShape col1, CollisionShape col2){
+	int xmax1 = col1.x + col1.width;
+	int xmin1 = col1.x;
+	int ymax1 = col1.y + col1.height;
+	int ymin1 = col1.y;
+
+	int xmax2 = col2.x + col2.width;
+	int xmin2 = col2.x;
+	int ymax2 = col2.y + col2.height;
+	int ymin2 = col2.y;
+
+	if(xmax1 >= xmin2 && xmax2 >= xmin1){
+		if(ymax1 >= ymin2 && ymax2 >= ymin1){
+			return true;
+		}
+	}
+	return false;
+}
+
 //---------------------------------------------------------------------------------
 int main(void) {
 	//---------------------------------------------------------------------------------
@@ -97,10 +124,11 @@ int main(void) {
 	dmaCopy(flappy32Pal, SPRITE_PALETTE, 32);
 	dmaCopy(pipePal, SPRITE_PALETTE + 16, 32);
 
-	int PIPE_FRAME_WIDTH = 32;
-	int PIPE_FRAME_OFFSET = PIPE_FRAME_WIDTH + 55;
+	XYPair PIPE_FRAME_DIMENSIONS = {32, 64};
+	int PIPE_FRAME_OFFSET = PIPE_FRAME_DIMENSIONS.x + 55;
 	int MIN_PIPE_H = -44;
 	int MAX_PIPE_H = 44;
+	int frontPipe = 0;
 
 	XYPair pipes[] ={
 		{SCREEN_RIGHT,getPipeHeight(MIN_PIPE_H, MAX_PIPE_H)},
@@ -109,12 +137,22 @@ int main(void) {
 		{SCREEN_RIGHT + PIPE_FRAME_OFFSET * 3,getPipeHeight(MIN_PIPE_H, MAX_PIPE_H)},
 	};
 
-	float y_height = SCREEN_BOTTOM - 16;
+	CollisionShape cols[] = {
+		{0,0,8,12},
+		{0,0,32,64},
+		{0,0,32,64}
+	};
+
+	int X_POS = 50;
+	int START_Y_POS = SCREEN_BOTTOM/2;
+
+	float y_height = START_Y_POS;
 	float y_speed = 0;
 	float GRAVITY = 0.3f/2;
 	float JUMP_FORCE = 5.0f/2;
 	float MAX_Y_SPEED = 8.0f/2;
-	int X_POS = 50;
+	XYPair BIRD_COL_OFFSET = {8,11};
+	XYPair PIPE_COL_OFFSET = {3,0};
 
 	int angle = 0;
 	int angleVelocity = 0;
@@ -159,17 +197,18 @@ int main(void) {
 		if(y_speed < -MAX_Y_SPEED){
 			y_speed = -MAX_Y_SPEED;
 		}
-		if(y_height > SCREEN_BOTTOM - BOTTOM_OFFSET){
-			y_speed = 0;
-			y_height = SCREEN_BOTTOM - BOTTOM_OFFSET;
-		}
-
 		y_height -= y_speed;
-		if(frame % 5 == 0){
-			printf("rand: %f\n", y_speed);
+		if(y_height > SCREEN_BOTTOM - BOTTOM_OFFSET){
+			y_height = SCREEN_BOTTOM - BOTTOM_OFFSET;
+			isDead = true;
+			if(isDead){
+				y_height = pipes[frontPipe].y + PIPE_FRAME_DIMENSIONS.y;
+				isDead = false;
+			}
 		}
 
-		if(held & KEY_A){
+
+		if(held & KEY_A & !isDead){
 			if(y_height > SCREEN_TOP){
 				y_speed = JUMP_FORCE;
 				flapStartFrame = frame;
@@ -177,6 +216,10 @@ int main(void) {
 			}
 		}
 
+		if(isDead){
+
+			printf("y:%d", (int)y_height);
+		}
 
 		if(y_speed > 0){
 			if(flapStartFrame != -1){
@@ -222,15 +265,22 @@ int main(void) {
 			);
 
 		for(int i=0;i<PIPE_COUNT;i++){
-			if(pipes[i].x > SCREEN_LEFT - PIPE_FRAME_WIDTH){
-				pipes[i].x -= 1;
+			if(pipes[i].x > SCREEN_LEFT - PIPE_FRAME_DIMENSIONS.x){
+				if(pipes[i].x < SCREEN_LEFT){
+					frontPipe = i + 1;
+					if(frontPipe > PIPE_COUNT - 1){
+						frontPipe = 0;
+					}
+				}
+				if(!isDead){
+					pipes[i].x -= 1;
+				}
 			}
 			else{
 				int j = i + PIPE_COUNT - 1;
 				if( j > PIPE_COUNT - 1){
 					j -= PIPE_COUNT;
 				}
-				
 
 				pipes[i].x = pipes[j].x + PIPE_FRAME_OFFSET;
 				pipes[i].y = getPipeHeight(MIN_PIPE_H, MAX_PIPE_H);
@@ -264,6 +314,19 @@ int main(void) {
 				false, true, //vflip, hflip
 				false	//apply mosaic
 				);
+		}
+
+		cols[0].x = X_POS + BIRD_COL_OFFSET.x;
+		cols[0].y = (int)y_height + BIRD_COL_OFFSET.y;
+		cols[1].x = pipes[frontPipe].x + PIPE_COL_OFFSET.x;
+		cols[1].y = pipes[frontPipe].y + PIPE_COL_OFFSET.y;
+		cols[1].x = pipes[frontPipe].x + PIPE_COL_OFFSET.x;
+		cols[1].y = pipes[frontPipe].y + PIPE_COL_OFFSET.y + BOTTOM_PIPE_OFFSET;
+
+		for(int i =1;i<3;i++){
+			if(isOverlapping(cols[0], cols[1])){
+				isDead = true;
+			}
 		}
 
 
