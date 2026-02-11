@@ -390,7 +390,6 @@ int main(void) {
 					old_add_pipes_count - add_pipes_count
 				);
 			}
-			printf("pipeOff: %d\n", add_pipes_count);
 		}
 		old_add_pipes_count = add_pipes_count;
 		
@@ -398,12 +397,14 @@ int main(void) {
 		cols[0].x = X_POS + BIRD_COL_OFFSET.x;
 		cols[0].y = (int)y_height + BIRD_COL_OFFSET.y;
 		cols[1].x = pipes[frontPipe].x + PIPE_COL_OFFSET.x;
-		cols[1].y = pipes[frontPipe].y + PIPE_COL_OFFSET.y;
-		cols[1].x = pipes[frontPipe].x + PIPE_COL_OFFSET.x;
-		cols[1].y = pipes[frontPipe].y + PIPE_COL_OFFSET.y + BOTTOM_PIPE_OFFSET;
+		cols[1].y = SCREEN_TOP;
+		cols[1].height = pipes[frontPipe].y + PIPE_COL_OFFSET.y + PIPE_FRAME_DIMENSIONS.y;
+		cols[2].x = pipes[frontPipe].x + PIPE_COL_OFFSET.x;
+		cols[2].y = pipes[frontPipe].y + PIPE_COL_OFFSET.y + BOTTOM_PIPE_OFFSET;
+		cols[2].height = SCREEN_BOTTOM - (pipes[frontPipe].y + PIPE_COL_OFFSET.y + BOTTOM_PIPE_OFFSET);
 
 		for(int i =1;i<3;i++){
-			if(isOverlapping(cols[0], cols[1])){
+			if(isOverlapping(cols[0], cols[i])){
 				isDead = true;
 			}
 		}
