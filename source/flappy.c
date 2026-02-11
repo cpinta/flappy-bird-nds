@@ -2,9 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <math.h>
 
 #include <flappy32.h>
 #include <pipe.h>
+
 
 static volatile int frame = 0;
 
@@ -89,6 +91,24 @@ bool isOverlapping(CollisionShape col1, CollisionShape col2){
 	return false;
 }
 
+float degreesToRadians(float degrees){
+	return degrees * 180.0 / M_PI;
+}
+
+XYPair rotatePoint(XYPair xy, XYPair cxy, float angle){
+	float rads = degreesToRadians(angle);
+	float cosRads = cos(rads);
+	float sinRads = sin(rads);
+
+	XYPair rxy = {
+		cosRads * (xy.x - cxy.x) - sinRads * (xy.y - cxy.y) + cxy.x,
+		sinRads * (xy.x - cxy.x) - cosRads * (xy.y - cxy.y) + cxy.y
+	};
+
+	return rxy;
+}
+
+
 //---------------------------------------------------------------------------------
 int main(void) {
 	//---------------------------------------------------------------------------------
@@ -130,6 +150,10 @@ int main(void) {
 	int MAX_PIPE_H = 44;
 	int frontPipe = 0;
 
+	int ADD_PIPES_IND = 2 + PIPE_COUNT * 2;
+	int add_pipes_count = 0;
+	int old_add_pipes_count = 0;
+
 	XYPair pipes[] ={
 		{SCREEN_RIGHT,getPipeHeight(MIN_PIPE_H, MAX_PIPE_H)},
 		{SCREEN_RIGHT + PIPE_FRAME_OFFSET * 1,getPipeHeight(MIN_PIPE_H, MAX_PIPE_H)},
@@ -157,14 +181,12 @@ int main(void) {
 	int angle = 0;
 	int angleVelocity = 0;
 	float delta = 1.0f/60.0f;
-	int ANGLE_CHANGE = 100;
 	int MAX_ANGLE = 20.0;
 	int MIN_ANGLE = -90.0;
-	int pipeFrame = 0;
-	int curPipeFrameOffset = 0;
-
 
 	bool isDead = false;
+	int score = 0;
+	int lastScoredPipe = -1;
 
 	float ANGLE_ACCELERATION = 0.4f;
 
@@ -216,11 +238,6 @@ int main(void) {
 			}
 		}
 
-		if(isDead){
-
-			printf("y:%d", (int)y_height);
-		}
-
 		if(y_speed > 0){
 			if(flapStartFrame != -1){
 				if((flapStartFrame - frame) % FRAME_SPEED == 0){
@@ -264,6 +281,7 @@ int main(void) {
 			false	//apply mosaic
 			);
 
+		add_pipes_count = 0;
 		for(int i=0;i<PIPE_COUNT;i++){
 			if(pipes[i].x > SCREEN_LEFT - PIPE_FRAME_DIMENSIONS.x){
 				if(pipes[i].x < SCREEN_LEFT){
@@ -272,8 +290,20 @@ int main(void) {
 						frontPipe = 0;
 					}
 				}
+
+				if(i == frontPipe){
+					if(lastScoredPipe != i){
+						if(pipes[i].x  < X_POS){
+							lastScoredPipe = frontPipe;
+							score++;
+							printf("score: %d\n", score);
+						}
+					}
+				}
+
 				if(!isDead){
 					pipes[i].x -= 1;
+
 				}
 			}
 			else{
@@ -300,6 +330,24 @@ int main(void) {
 				false	//apply mosaic
 				);
 
+			if(pipes[i].y > SCREEN_TOP){
+				oamSet(&oamMain, //main graphics engine context
+					ADD_PIPES_IND + add_pipes_count,           //oam index (0 to 127)
+					pipes[i].x, pipes[i].y - PIPE_FRAME_DIMENSIONS.y,   //x and y pixel location of the sprite
+					0,                    //priority, lower renders last (on top)
+					1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+					SpriteSize_32x64,
+					SpriteColorFormat_16Color,
+					pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
+					-1,                  //sprite rotation data
+					false,               //double the size when rotating?
+					false,			//hide the sprite?
+					false, true, //hflip, vflip
+					false	//apply mosaic
+					);
+				add_pipes_count++;
+			}
+
 			oamSet(&oamMain, //main graphics engine context
 				2+ i * 2,           //oam index (0 to 127)
 				pipes[i].x, pipes[i].y + BOTTOM_PIPE_OFFSET,   //x and y pixel location of the sprite
@@ -314,7 +362,38 @@ int main(void) {
 				false, true, //vflip, hflip
 				false	//apply mosaic
 				);
+			
+			if(pipes[i].y + BOTTOM_PIPE_OFFSET + PIPE_FRAME_DIMENSIONS.y < SCREEN_BOTTOM){
+				oamSet(&oamMain, //main graphics engine context
+					ADD_PIPES_IND + add_pipes_count,           //oam index (0 to 127)
+					pipes[i].x, pipes[i].y + BOTTOM_PIPE_OFFSET + PIPE_FRAME_DIMENSIONS.y,   //x and y pixel location of the sprite
+					0,                    //priority, lower renders last (on top)
+					1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+					SpriteSize_32x64,
+					SpriteColorFormat_16Color,
+					pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
+					-1,                  //sprite rotation data
+					false,               //double the size when rotating?
+					false,			//hide the sprite?
+					false, false, //hflip, vflip
+					false	//apply mosaic
+					);
+				add_pipes_count++;
+			}
 		}
+
+		if(old_add_pipes_count != add_pipes_count){
+			if(old_add_pipes_count > add_pipes_count){
+				oamClear(
+					&oamMain,
+					ADD_PIPES_IND + add_pipes_count,
+					old_add_pipes_count - add_pipes_count
+				);
+			}
+			printf("pipeOff: %d\n", add_pipes_count);
+		}
+		old_add_pipes_count = add_pipes_count;
+		
 
 		cols[0].x = X_POS + BIRD_COL_OFFSET.x;
 		cols[0].y = (int)y_height + BIRD_COL_OFFSET.y;
