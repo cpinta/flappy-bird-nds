@@ -45,6 +45,36 @@ typedef struct
 
 enum {SCREEN_TOP = 0, SCREEN_BOTTOM = 192, SCREEN_LEFT = 0, SCREEN_RIGHT = 256};
 
+float GRAVITY = 0.3f/2;
+float JUMP_FORCE = 5.0f/2;
+float MAX_Y_SPEED = 8.0f/2;
+XYPair BIRD_COL_OFFSET = {8,11};
+XYPair PIPE_COL_OFFSET = {3,0};
+
+
+int flapStartFrame = 0;
+
+int X_POS = 50;
+int START_Y_POS = SCREEN_BOTTOM/2;
+int MAX_ANGLE = 20.0;
+int MIN_ANGLE = -90.0;
+int angleVelocity = 0;
+int angle = 0;
+float ANGLE_ACCELERATION = 0.4f;
+
+int BOTTOM_OFFSET = 16;
+
+float y_height = 0;
+float y_speed = 0;
+
+
+enum GameState {
+	TITLE,
+	READY,
+	INGAME,
+	OVER
+};
+
 void initSprite(Sprite *sprite, u8* gfx, SpriteSize sprite_size, int sy)
 {
 	sprite->sprite_gfx_mem = oamAllocateGfx(&oamMain, sprite_size, SpriteColorFormat_16Color);
@@ -61,10 +91,6 @@ void animateSprite(Sprite *sprite)
 
 int angleToRotation(float angle){
 	return (int)(32767.0f/360.0f * angle);
-}
-
-void flap(){
-	
 }
 
 int getPipeHeight(int min, int max){
@@ -108,6 +134,30 @@ XYPair rotatePoint(XYPair xy, XYPair cxy, float angle){
 	return rxy;
 }
 
+void setGameState(enum GameState *state, enum GameState newState){
+	*state = newState;
+	frame = 0;
+
+	switch(newState) {
+		case TITLE:
+			break;
+		case READY:
+			y_height = START_Y_POS;
+			y_speed = 0;
+			angle = 0;
+			break;
+		case INGAME:
+			break;
+		case OVER:
+			break;
+	}
+}
+
+void flap(){
+	y_speed = JUMP_FORCE;
+	flapStartFrame = frame;
+	angleVelocity = angleToRotation(10.0f);
+}
 
 //---------------------------------------------------------------------------------
 int main(void) {
@@ -125,8 +175,6 @@ int main(void) {
 	pipe.state = 0;
 	bird.state = 0;
 	pipe.anim_frame = 0;
-
-	int flapStartFrame = 0;
 
 	videoSetMode(MODE_0_2D);
 	videoSetModeSub(MODE_0_2D);
@@ -167,31 +215,17 @@ int main(void) {
 		{0,0,32,64}
 	};
 
-	int X_POS = 50;
-	int START_Y_POS = SCREEN_BOTTOM/2;
-
-	float y_height = START_Y_POS;
-	float y_speed = 0;
-	float GRAVITY = 0.3f/2;
-	float JUMP_FORCE = 5.0f/2;
-	float MAX_Y_SPEED = 8.0f/2;
-	XYPair BIRD_COL_OFFSET = {8,11};
-	XYPair PIPE_COL_OFFSET = {3,0};
-
-	int angle = 0;
-	int angleVelocity = 0;
 	float delta = 1.0f/60.0f;
-	int MAX_ANGLE = 20.0;
-	int MIN_ANGLE = -90.0;
 
 	bool isDead = false;
 	int score = 0;
 	int lastScoredPipe = -1;
+	float readyCount = 0.0;
+	float erm = 8.0;
+	enum GameState state = TITLE;
 
-	float ANGLE_ACCELERATION = 0.4f;
 
 
-	int BOTTOM_OFFSET = 16;
 
 	MIN_ANGLE = angleToRotation((float)MIN_ANGLE);
 	MAX_ANGLE = angleToRotation((float)MAX_ANGLE);
@@ -199,6 +233,8 @@ int main(void) {
 
 	consoleDemoInit();
 	irqSet(IRQ_VBLANK, Vblank);
+
+	// int bg = bgInit(2, BgType_Bmp16, BgSize_B16_512x256, 0, 0);
 
 	while(pmMainLoop()) {
 
@@ -209,204 +245,256 @@ int main(void) {
 		if(held & KEY_TOUCH)
 			touchRead(&touch);
 
-		if(held & KEY_START) break;
 
 
-		y_speed -= GRAVITY;
-		if(y_speed > MAX_Y_SPEED){
-			y_speed = MAX_Y_SPEED;
-		}
-		if(y_speed < -MAX_Y_SPEED){
-			y_speed = -MAX_Y_SPEED;
-		}
-		y_height -= y_speed;
-		if(y_height > SCREEN_BOTTOM - BOTTOM_OFFSET){
-			y_height = SCREEN_BOTTOM - BOTTOM_OFFSET;
-			isDead = true;
-			if(isDead){
-				y_height = pipes[frontPipe].y + PIPE_FRAME_DIMENSIONS.y;
-				isDead = false;
-			}
-		}
-
-
-		if(held & KEY_A & !isDead){
-			if(y_height > SCREEN_TOP){
-				y_speed = JUMP_FORCE;
-				flapStartFrame = frame;
-				angleVelocity = angleToRotation(10.0f);
-			}
-		}
-
-		if(y_speed > 0){
-			if(flapStartFrame != -1){
-				if((flapStartFrame - frame) % FRAME_SPEED == 0){
-					bird.anim_frame++;
+		switch(state) {
+			case TITLE:
+				if(held & KEY_START){
+					setGameState(&state, READY);
 				}
-			}
-		}
-		else{
-			bird.anim_frame = 1;
-		}
-		if(bird.anim_frame >= FRAMES_PER_ANIMATION){
-			bird.anim_frame = 0;
-		}
+				break;
+			case READY:
+				if(held & KEY_A){
+					setGameState(&state, INGAME);
+				}
+				readyCount += 8.0;
+				// if(readyCount == 360.0){
+				// 	readyCount = 0;
+				// }
 
-		animateSprite(&bird);
+				// y_height = sin(test) * 4.0;
+				// y_height = sin(readyCount) * 4.0;
 
-		angle += angleVelocity;
-		angleVelocity -= ANGLE_ACCELERATION;
+				if(flapStartFrame != -1){
+					if((flapStartFrame - frame) % FRAME_SPEED == 0){
+						bird.anim_frame++;
+					}
+				}
+				if(bird.anim_frame >= FRAMES_PER_ANIMATION){
+					bird.anim_frame = 0;
+					flapStartFrame = 0;
+				}
 
-		if(angle <= MIN_ANGLE){
-			angle = MIN_ANGLE;
-		}
-		if(angle >= MAX_ANGLE){
-			angle = MAX_ANGLE;
-		}
+				animateSprite(&bird);
 
-
-		oamRotateScale(&oamMain, 0, angle, (1<<8), (1<<8));
-		oamSet(&oamMain, //main graphics engine context
-			0,           //oam index (0 to 127)
-			X_POS, (int)y_height,   //x and y pixel location of the sprite
-			0,                    //priority, lower renders last (on top)
-			0,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
-			SpriteSize_32x32,
-			SpriteColorFormat_16Color,
-			bird.sprite_gfx_mem,                  //pointer to the loaded graphics
-			0,                  //sprite rotation data
-			false,               //double the size when rotating?
-			false,			//hide the sprite?
-			false, false, //vflip, hflip
-			false	//apply mosaic
-			);
-
-		add_pipes_count = 0;
-		for(int i=0;i<PIPE_COUNT;i++){
-			if(pipes[i].x > SCREEN_LEFT - PIPE_FRAME_DIMENSIONS.x){
-				if(pipes[i].x < SCREEN_LEFT){
-					frontPipe = i + 1;
-					if(frontPipe > PIPE_COUNT - 1){
-						frontPipe = 0;
+				oamSet(&oamMain, //main graphics engine context
+					0,           //oam index (0 to 127)
+					X_POS, (int)y_height,   //x and y pixel location of the sprite
+					0,                    //priority, lower renders last (on top)
+					0,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+					SpriteSize_32x32,
+					SpriteColorFormat_16Color,
+					bird.sprite_gfx_mem,                  //pointer to the loaded graphics
+					0,                  //sprite rotation data
+					false,               //double the size when rotating?
+					false,			//hide the sprite?
+					false, false, //vflip, hflip
+					false	//apply mosaic
+					);
+				break;
+			case INGAME:
+				y_speed -= GRAVITY;
+				
+				if(y_speed > MAX_Y_SPEED){
+					y_speed = MAX_Y_SPEED;
+				}
+				if(y_speed < -MAX_Y_SPEED){
+					y_speed = -MAX_Y_SPEED;
+				}
+				y_height -= y_speed;
+				if(y_height > SCREEN_BOTTOM - BOTTOM_OFFSET){
+					y_height = SCREEN_BOTTOM - BOTTOM_OFFSET;
+					isDead = true;
+					if(isDead){
+						// y_height = pipes[frontPipe].y + PIPE_FRAME_DIMENSIONS.y;
+						// isDead = false;
+						setGameState(&state, OVER);
 					}
 				}
 
-				if(i == frontPipe){
-					if(lastScoredPipe != i){
-						if(pipes[i].x  < X_POS){
-							lastScoredPipe = frontPipe;
-							score++;
-							printf("score: %d\n", score);
+
+				if(held & KEY_A & !isDead){
+					if(y_height > SCREEN_TOP){
+						flap();
+					}
+				}
+
+				if(y_speed > 0){
+					if(flapStartFrame != -1){
+						if((flapStartFrame - frame) % FRAME_SPEED == 0){
+							bird.anim_frame++;
 						}
 					}
 				}
-
-				if(!isDead){
-					pipes[i].x -= 1;
-
+				else{
+					bird.anim_frame = 1;
 				}
-			}
-			else{
-				int j = i + PIPE_COUNT - 1;
-				if( j > PIPE_COUNT - 1){
-					j -= PIPE_COUNT;
+				if(bird.anim_frame >= FRAMES_PER_ANIMATION){
+					bird.anim_frame = 0;
 				}
 
-				pipes[i].x = pipes[j].x + PIPE_FRAME_OFFSET;
-				pipes[i].y = getPipeHeight(MIN_PIPE_H, MAX_PIPE_H);
-			}
-			oamSet(&oamMain, //main graphics engine context
-				1 + i * 2,           //oam index (0 to 127)
-				pipes[i].x, pipes[i].y,   //x and y pixel location of the sprite
-				0,                    //priority, lower renders last (on top)
-				1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
-				SpriteSize_32x64,
-				SpriteColorFormat_16Color,
-				pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
-				-1,                  //sprite rotation data
-				false,               //double the size when rotating?
-				false,			//hide the sprite?
-				false, false, //vflip, hflip
-				false	//apply mosaic
-				);
+				animateSprite(&bird);
 
-			if(pipes[i].y > SCREEN_TOP){
+				angle += angleVelocity;
+				angleVelocity -= ANGLE_ACCELERATION;
+
+				if(angle <= MIN_ANGLE){
+					angle = MIN_ANGLE;
+				}
+				if(angle >= MAX_ANGLE){
+					angle = MAX_ANGLE;
+				}
+
+
+				oamRotateScale(&oamMain, 0, angle, (1<<8), (1<<8));
 				oamSet(&oamMain, //main graphics engine context
-					ADD_PIPES_IND + add_pipes_count,           //oam index (0 to 127)
-					pipes[i].x, pipes[i].y - PIPE_FRAME_DIMENSIONS.y,   //x and y pixel location of the sprite
+					0,           //oam index (0 to 127)
+					X_POS, (int)y_height,   //x and y pixel location of the sprite
 					0,                    //priority, lower renders last (on top)
-					1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
-					SpriteSize_32x64,
+					0,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+					SpriteSize_32x32,
 					SpriteColorFormat_16Color,
-					pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
-					-1,                  //sprite rotation data
+					bird.sprite_gfx_mem,                  //pointer to the loaded graphics
+					0,                  //sprite rotation data
 					false,               //double the size when rotating?
 					false,			//hide the sprite?
-					false, true, //hflip, vflip
+					false, false, //vflip, hflip
 					false	//apply mosaic
 					);
-				add_pipes_count++;
-			}
 
-			oamSet(&oamMain, //main graphics engine context
-				2+ i * 2,           //oam index (0 to 127)
-				pipes[i].x, pipes[i].y + BOTTOM_PIPE_OFFSET,   //x and y pixel location of the sprite
-				0,                    //priority, lower renders last (on top)
-				1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
-				SpriteSize_32x64,
-				SpriteColorFormat_16Color,
-				pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
-				-1,                  //sprite rotation data
-				false,               //double the size when rotating?
-				false,			//hide the sprite?
-				false, true, //vflip, hflip
-				false	//apply mosaic
-				);
-			
-			if(pipes[i].y + BOTTOM_PIPE_OFFSET + PIPE_FRAME_DIMENSIONS.y < SCREEN_BOTTOM){
-				oamSet(&oamMain, //main graphics engine context
-					ADD_PIPES_IND + add_pipes_count,           //oam index (0 to 127)
-					pipes[i].x, pipes[i].y + BOTTOM_PIPE_OFFSET + PIPE_FRAME_DIMENSIONS.y,   //x and y pixel location of the sprite
-					0,                    //priority, lower renders last (on top)
-					1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
-					SpriteSize_32x64,
-					SpriteColorFormat_16Color,
-					pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
-					-1,                  //sprite rotation data
-					false,               //double the size when rotating?
-					false,			//hide the sprite?
-					false, false, //hflip, vflip
-					false	//apply mosaic
-					);
-				add_pipes_count++;
-			}
-		}
+				add_pipes_count = 0;
+				for(int i=0;i<PIPE_COUNT;i++){
+					if(pipes[i].x > SCREEN_LEFT - PIPE_FRAME_DIMENSIONS.x){
+						if(pipes[i].x < SCREEN_LEFT){
+							frontPipe = i + 1;
+							if(frontPipe > PIPE_COUNT - 1){
+								frontPipe = 0;
+							}
+						}
 
-		if(old_add_pipes_count != add_pipes_count){
-			if(old_add_pipes_count > add_pipes_count){
-				oamClear(
-					&oamMain,
-					ADD_PIPES_IND + add_pipes_count,
-					old_add_pipes_count - add_pipes_count
-				);
-			}
-		}
-		old_add_pipes_count = add_pipes_count;
-		
+						if(i == frontPipe){
+							if(lastScoredPipe != i){
+								if(pipes[i].x  < X_POS){
+									lastScoredPipe = frontPipe;
+									score++;
+									printf("score: %d\n", score);
+								}
+							}
+						}
 
-		cols[0].x = X_POS + BIRD_COL_OFFSET.x;
-		cols[0].y = (int)y_height + BIRD_COL_OFFSET.y;
-		cols[1].x = pipes[frontPipe].x + PIPE_COL_OFFSET.x;
-		cols[1].y = SCREEN_TOP;
-		cols[1].height = pipes[frontPipe].y + PIPE_COL_OFFSET.y + PIPE_FRAME_DIMENSIONS.y;
-		cols[2].x = pipes[frontPipe].x + PIPE_COL_OFFSET.x;
-		cols[2].y = pipes[frontPipe].y + PIPE_COL_OFFSET.y + BOTTOM_PIPE_OFFSET;
-		cols[2].height = SCREEN_BOTTOM - (pipes[frontPipe].y + PIPE_COL_OFFSET.y + BOTTOM_PIPE_OFFSET);
+						if(!isDead){
+							pipes[i].x -= 1;
 
-		for(int i =1;i<3;i++){
-			if(isOverlapping(cols[0], cols[i])){
-				isDead = true;
-			}
+						}
+					}
+					else{
+						int j = i + PIPE_COUNT - 1;
+						if( j > PIPE_COUNT - 1){
+							j -= PIPE_COUNT;
+						}
+
+						pipes[i].x = pipes[j].x + PIPE_FRAME_OFFSET;
+						pipes[i].y = getPipeHeight(MIN_PIPE_H, MAX_PIPE_H);
+					}
+					oamSet(&oamMain, //main graphics engine context
+						1 + i * 2,           //oam index (0 to 127)
+						pipes[i].x, pipes[i].y,   //x and y pixel location of the sprite
+						0,                    //priority, lower renders last (on top)
+						1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+						SpriteSize_32x64,
+						SpriteColorFormat_16Color,
+						pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
+						-1,                  //sprite rotation data
+						false,               //double the size when rotating?
+						false,			//hide the sprite?
+						false, false, //vflip, hflip
+						false	//apply mosaic
+						);
+
+					if(pipes[i].y > SCREEN_TOP){
+						oamSet(&oamMain, //main graphics engine context
+							ADD_PIPES_IND + add_pipes_count,           //oam index (0 to 127)
+							pipes[i].x, pipes[i].y - PIPE_FRAME_DIMENSIONS.y,   //x and y pixel location of the sprite
+							0,                    //priority, lower renders last (on top)
+							1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+							SpriteSize_32x64,
+							SpriteColorFormat_16Color,
+							pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
+							-1,                  //sprite rotation data
+							false,               //double the size when rotating?
+							false,			//hide the sprite?
+							false, true, //hflip, vflip
+							false	//apply mosaic
+							);
+						add_pipes_count++;
+					}
+
+					oamSet(&oamMain, //main graphics engine context
+						2+ i * 2,           //oam index (0 to 127)
+						pipes[i].x, pipes[i].y + BOTTOM_PIPE_OFFSET,   //x and y pixel location of the sprite
+						0,                    //priority, lower renders last (on top)
+						1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+						SpriteSize_32x64,
+						SpriteColorFormat_16Color,
+						pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
+						-1,                  //sprite rotation data
+						false,               //double the size when rotating?
+						false,			//hide the sprite?
+						false, true, //vflip, hflip
+						false	//apply mosaic
+						);
+					
+					if(pipes[i].y + BOTTOM_PIPE_OFFSET + PIPE_FRAME_DIMENSIONS.y < SCREEN_BOTTOM){
+						oamSet(&oamMain, //main graphics engine context
+							ADD_PIPES_IND + add_pipes_count,           //oam index (0 to 127)
+							pipes[i].x, pipes[i].y + BOTTOM_PIPE_OFFSET + PIPE_FRAME_DIMENSIONS.y,   //x and y pixel location of the sprite
+							0,                    //priority, lower renders last (on top)
+							1,					  //this is the palette index if multiple palettes or the alpha value if bmp sprite
+							SpriteSize_32x64,
+							SpriteColorFormat_16Color,
+							pipe.sprite_gfx_mem,                  //pointer to the loaded graphics
+							-1,                  //sprite rotation data
+							false,               //double the size when rotating?
+							false,			//hide the sprite?
+							false, false, //hflip, vflip
+							false	//apply mosaic
+							);
+						add_pipes_count++;
+					}
+				}
+
+				if(old_add_pipes_count != add_pipes_count){
+					if(old_add_pipes_count > add_pipes_count){
+						oamClear(
+							&oamMain,
+							ADD_PIPES_IND + add_pipes_count,
+							old_add_pipes_count - add_pipes_count
+						);
+					}
+				}
+				old_add_pipes_count = add_pipes_count;
+				
+
+				cols[0].x = X_POS + BIRD_COL_OFFSET.x;
+				cols[0].y = (int)y_height + BIRD_COL_OFFSET.y;
+				cols[1].x = pipes[frontPipe].x + PIPE_COL_OFFSET.x;
+				cols[1].y = SCREEN_TOP;
+				cols[1].height = pipes[frontPipe].y + PIPE_COL_OFFSET.y + PIPE_FRAME_DIMENSIONS.y;
+				cols[2].x = pipes[frontPipe].x + PIPE_COL_OFFSET.x;
+				cols[2].y = pipes[frontPipe].y + PIPE_COL_OFFSET.y + BOTTOM_PIPE_OFFSET;
+				cols[2].height = SCREEN_BOTTOM - (pipes[frontPipe].y + PIPE_COL_OFFSET.y + BOTTOM_PIPE_OFFSET);
+
+				for(int i =1;i<3;i++){
+					if(isOverlapping(cols[0], cols[i])){
+						isDead = true;
+					}
+				}
+				break;
+			case OVER:
+				if(held & KEY_START){
+					setGameState(&state, READY);
+				}
+				break;
 		}
 
 
